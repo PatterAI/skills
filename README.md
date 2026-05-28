@@ -1,7 +1,9 @@
 <p align="center">
-  <a href="https://github.com/PatterAI/Patter">
-    <img src="https://raw.githubusercontent.com/PatterAI/Patter/main/docs/github-banner.png" alt="Patter Skills" width="100%" />
-  </a>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./docs/github-banner.png" />
+    <source media="(prefers-color-scheme: light)" srcset="./docs/github-banner.png" />
+    <img src="./docs/github-banner.png" alt="Patter Skills" width="100%" />
+  </picture>
 </p>
 
 <h1 align="center">Patter Skills</h1>
@@ -13,10 +15,6 @@
 </p>
 
 <p align="center">
-  <strong>Anthropic Agent Skills for the Patter SDK — voice agents on real phone calls, in any AI agent harness.</strong>
-</p>
-
-<p align="center">
   <a href="#install">Install</a> •
   <a href="#skills">Skills</a> •
   <a href="#supported-agents">Supported agents</a> •
@@ -25,6 +23,8 @@
 </p>
 
 ---
+
+Anthropic Agent Skills for the Patter SDK — give your AI agent a phone number in any harness that consumes the [Agent Skills](https://agentskills.io) standard. One CLI, five skills, ~55 supported coding and voice agents.
 
 ## Install
 
@@ -51,7 +51,7 @@ Skills land in `~/.agents/skills/<skill-name>/` (global) or `./.agents/skills/<s
 | [`add-tools-and-handoffs`](./add-tools-and-handoffs) | Custom tools, `transfer_call`, `end_call`, output guardrails. |
 | [`inspect-calls-and-metrics`](./inspect-calls-and-metrics) | Live dashboard, `CallMetrics`, cost tracking, CSV/JSON export. |
 
-Every `SKILL.md` is paired with `references/` for deep-dive topics the agent loads on demand. Tested against `getpatter` 0.6.2 in both Python (≥3.11) and TypeScript (Node ≥20).
+Larger skills (`build-voice-agent`, `configure-telephony`) bundle a `references/` directory the agent loads on demand for deep-dive topics. Tested against `getpatter` 0.6.2 in both Python (≥3.11) and TypeScript (Node ≥20).
 
 ## Supported agents
 

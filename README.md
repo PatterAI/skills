@@ -24,7 +24,7 @@
 
 ---
 
-Anthropic Agent Skills for the Patter SDK — give your AI agent a phone number in any harness that consumes the [Agent Skills](https://agentskills.io) standard. One CLI, five skills, ~55 supported coding and voice agents.
+[Agent Skills](https://agentskills.io) for the Patter SDK — give your AI agent a phone number in any harness that consumes the standard. One CLI, five skills, ~55 supported coding and voice agents.
 
 ## Install
 
@@ -55,7 +55,7 @@ Larger skills (`build-voice-agent`, `configure-telephony`) bundle a `references/
 
 ## Supported agents
 
-Skills work out-of-the-box in ~55 AI agent harnesses that consume the [Anthropic Agent Skills](https://agentskills.io) standard:
+Skills work out-of-the-box in ~55 AI agent harnesses that consume the [Agent Skills](https://agentskills.io) standard:
 
 **Coding agents** — Claude Code, Cursor, GitHub Copilot, Codex, Cline, Crush, Goose, Amp, Antigravity, Windsurf.
 

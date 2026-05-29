@@ -22,7 +22,7 @@ provider, simplest setup.
 
 | Engine | Model | Status | When to pick |
 |---|---|---|---|
-| `OpenAIRealtime2` | `gpt-realtime-2` | **GA in 0.6.2 (recommended)** | New code |
+| `OpenAIRealtime2` | `gpt-realtime-2` | **GA in 0.6.3 (recommended)** | New code |
 | `OpenAIRealtime` | `gpt-realtime-mini` | Maintained for compat | Existing 0.5.x → 0.6.x upgrades |
 
 ## Python

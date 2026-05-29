@@ -64,7 +64,7 @@ const phone = new Patter({
 
 | Feature | How |
 |---|---|
-| **AMD** | `phone.call(to=..., machine_detection=True)` — defaults to True in 0.6.2. |
+| **AMD** | `phone.call(to=..., machine_detection=True)` — defaults to True in 0.6.3. |
 | **Voicemail drop** | `phone.call(to=..., voicemail_message="...")` — implicitly enables AMD. |
 | **Ring timeout** | `phone.call(to=..., ring_timeout=30)` — default 25 s. |
 | **Recording** | `phone.serve(agent, recording=True)` — server-wide, all calls recorded. URL surfaced in logs. |
@@ -78,7 +78,7 @@ const phone = new Patter({
 - **Geographic permissions**: Twilio blocks high-cost destinations by
   default. Enable per-region in **Voice → Geo Permissions**.
 - **AMD `Status` PascalCase**: Twilio's API uses PascalCase params, but
-  Patter 0.6.2 normalizes Python `machine_detection` / TS `machineDetection`
+  Patter 0.6.3 normalizes Python `machine_detection` / TS `machineDetection`
   automatically. Don't pass `MachineDetection=`.
 - **Public TwiML apps** can override the per-number webhook. If your
   number is bound to a TwiML App, change the App's voice URL, not the

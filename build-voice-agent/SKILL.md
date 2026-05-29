@@ -13,7 +13,7 @@ description: >
   AI" without naming Patter.
 license: MIT
 compatibility: >
-  Requires Patter >= 0.6.2, a configured carrier (Twilio or Telnyx) and
+  Requires Patter >= 0.6.3, a configured carrier (Twilio or Telnyx) and
   provider key (OPENAI_API_KEY for Realtime; ELEVENLABS_API_KEY for ConvAI;
   STT+LLM+TTS keys for Pipeline). Use the `setup-patter` skill first if the
   user hasn't installed and configured Patter.
@@ -134,30 +134,83 @@ preload all three.
 
 ## Outbound calls
 
-Same `Patter` instance does outbound. After `phone.serve(...)`, call:
+The same `Patter` instance places outbound calls — but **`phone.call()` always
+needs a running server to dial through** (raises `PatterConnectionError`
+otherwise), and you choose how the call's lifecycle is reported:
+
+- **`wait=True` (completion-aware, since 0.6.3)** — `call()` blocks until the
+  callee hangs up and returns a `CallResult` with the `outcome`, duration,
+  transcript, and cost. This is what you want for scripts and campaigns: one
+  `await`, one resolved call.
+- **`wait=False` (default, fire-and-forget)** — `call()` returns at the moment
+  the carrier *dials* (not at hangup) and yields `None`/`void`. The call then
+  lives entirely inside the running server — so something has to keep that
+  server alive (a long-running `serve()`, or the `async with` / `await using`
+  block below) for the conversation to continue.
+
+The completion-aware form is the recommended pattern. `async with Patter(...)`
+(Python) / `await using` (TypeScript) boots the local server, keeps it alive
+for the call's lifetime, and tears it down cleanly on exit — no dangling
+process, no manual `serve()` task to cancel:
 
 ```python
-# Python — machine_detection defaults to True in 0.6.2
-await phone.call(
-    to="+14155551234",
-    agent=agent,
-    first_message="Hi, this is Mia from Acme.",
-    voicemail_message="Sorry we missed you. Call back at +1...",
-)
+import asyncio
+from getpatter import Patter, Twilio, OpenAIRealtime2
+
+async def main():
+    # `async with` runs the local server for the duration of the block.
+    async with Patter(carrier=Twilio(), phone_number="+15550001234") as phone:
+        agent = phone.agent(
+            engine=OpenAIRealtime2(),
+            system_prompt="You are Mia from Acme. Keep replies under two sentences.",
+            first_message="Hi, this is Mia from Acme.",
+        )
+        result = await phone.call(
+            to="+14155551234",
+            agent=agent,
+            voicemail_message="Sorry we missed you. Call back at +1...",
+            wait=True,                 # block until the call ends → CallResult
+        )
+        # CallResult is frozen: call_id, outcome, status,
+        # duration_seconds, transcript, cost, metrics.
+        print(result.outcome)          # answered | voicemail | no_answer | busy | failed
+        print(f"{result.duration_seconds:.0f}s · ${result.cost.total_usd:.4f}")
+
+asyncio.run(main())
 ```
 
 ```typescript
-// TypeScript
-await phone.call({
+import { Patter, Twilio, OpenAIRealtime2 } from "getpatter";
+
+// `await using` runs the local server, then disposes it when the block exits.
+await using phone = new Patter({
+  carrier: new Twilio(),
+  phoneNumber: "+15550001234",
+});
+
+const agent = phone.agent({
+  engine: new OpenAIRealtime2(),
+  systemPrompt: "You are Mia from Acme. Keep replies under two sentences.",
+  firstMessage: "Hi, this is Mia from Acme.",
+});
+
+const result = await phone.call({
   to: "+14155551234",
   agent,
-  firstMessage: "Hi, this is Mia from Acme.",
   voicemailMessage: "Sorry we missed you. Call back at +1...",
+  wait: true,                          // block until the call ends → CallResult
 });
+// CallResult is readonly: callId, outcome, status,
+// durationSeconds, transcript, cost, metrics.
+console.log(result.outcome);           // answered | voicemail | no_answer | busy | failed
+console.log(`${result.durationSeconds}s · $${result.cost.totalUsd}`);
 ```
 
-`machine_detection` is on by default in 0.6.2. Patter auto-detects voicemail
-and plays the call's `voicemail_message` before hanging up. A non-empty
+`wait=True` is timeout-bounded on `ring_timeout` (default 25 s), so a number
+that never picks up resolves to `outcome="no_answer"` rather than hanging
+forever. `machine_detection` is on by default in 0.6.3: Patter auto-detects
+voicemail, plays the call's `voicemail_message` before hanging up, and the
+`CallResult` comes back with `outcome="voicemail"`. A non-empty
 `voicemail_message` implicitly enables AMD even if you pass
 `machine_detection=False`. Otherwise the live person hears `first_message`
 and the agent starts the conversation. See `configure-telephony` for the
@@ -179,7 +232,7 @@ to 1 sentence under 8 seconds of audio.
 
 ## Gotchas
 
-- **Patter has no Patter Cloud in 0.6.2** — `Patter(api_key=...)` raises
+- **Patter has no Patter Cloud in 0.6.3** — `Patter(api_key=...)` raises
   `NotImplementedError`. Always use `carrier=...` + `phone_number=...`.
 - **Built-in tools are always present**: every agent gets `transfer_call` and
   `end_call` for free. You don't have to register them.
@@ -191,11 +244,11 @@ to 1 sentence under 8 seconds of audio.
   occasionally have a ~3 s WSS upgrade race on first call.
 - **`first_message` is played before the LLM responds**. If you omit it,
   there's an awkward 1–2 s pause while the LLM warms up.
-- **Barge-in works by default** in 0.6.2 (VAD activation 0.8, deactivation
+- **Barge-in works by default** in 0.6.3 (VAD activation 0.8, deactivation
   0.65 — tuned for room noise). If your callers are interrupting at the
   wrong moments, see [`inspect-calls-and-metrics`](../inspect-calls-and-metrics/)
   to read the VAD events from the call log.
-- **`prewarm_first_message=False` is the default** in 0.6.2 — it was briefly
+- **`prewarm_first_message=False` is the default** in 0.6.3 — it was briefly
   flipped to `True` mid-release and reverted because it conflicted with
   barge-in.
 
@@ -204,6 +257,7 @@ to 1 sentence under 8 seconds of audio.
 | Symptom | Fix |
 |---|---|
 | `RuntimeError: Patter Cloud is not implemented` | Don't pass `api_key=`. Use `carrier=Twilio()` + `phone_number="..."`. |
+| `PatterConnectionError` on `call(..., wait=True)` | No running server to dial through. Wrap the call in `async with Patter(...)` / `await using`, or place it while a `serve()` task is alive. |
 | Agent says nothing on pickup | Missing `first_message=`. Add one. |
 | LLM responses are 4 paragraphs long | Add "Keep replies under two sentences" to system prompt. |
 | Caller hears garbled audio | Wrong audio rate. Check you're using the right carrier (mulaw 8 kHz Twilio, PCM 16 kHz Telnyx). Patter handles this; user code only breaks it via custom pipeline hooks. |

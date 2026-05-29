@@ -7,11 +7,11 @@ description: >
   ngrok, or a static URL), and verify webhook signatures. Use when the user
   is wiring up Twilio, Telnyx, a phone number, a webhook URL, a tunnel, AMD
   (Answering Machine Detection), call recording, voicemail drop, or DTMF
-  routing — even if they don't say "telephony". Covers both Patter 0.6.2
+  routing — even if they don't say "telephony". Covers both Patter 0.6.3
   SDKs (Python and TypeScript).
 license: MIT
 compatibility: >
-  Requires Patter >= 0.6.2, an active Twilio or Telnyx account with at least
+  Requires Patter >= 0.6.3, an active Twilio or Telnyx account with at least
   one purchased number, and the ability to expose a public webhook URL
   (tunnel for dev, static URL for prod).
 metadata:
@@ -118,39 +118,69 @@ await prod.serve({ agent });
 
 ## Outbound calls (AMD, voicemail drop)
 
-After `phone.serve(...)`, place an outbound call. `machine_detection` is **on
-by default** in 0.6.2 — pass `False` only to skip per-call AMD billing.
+Place an outbound call through a running server. Since 0.6.3, pass `wait=True`
+to block until the call ends and get back a `CallResult` — its `outcome`
+field is exactly what you route on (`answered` / `voicemail` / `no_answer` /
+`busy` / `failed`), derived from real carrier AMD + call-progress signals.
+`machine_detection` is **on by default** in 0.6.3 — pass `False` only to skip
+per-call AMD billing. (`wait=False`, the default, is fire-and-forget and
+returns `None`/`void`; it needs a long-running `serve()` to keep the call
+alive.)
 
 ### Python
 
 ```python
-await phone.call(
-    to="+14155551234",
-    agent=agent,
-    first_message="Hi, this is Mia from Acme.",
-    machine_detection=True,                            # default in 0.6.2
-    voicemail_message="Sorry we missed you. Call back at +1...",
-    ring_timeout=30,                                    # default 25 s
-)
+from getpatter import Patter, Twilio
+
+# `async with` keeps the local server up for the call's lifetime.
+async with Patter(carrier=Twilio(), phone_number="+15550001234") as phone:
+    result = await phone.call(
+        to="+14155551234",
+        agent=agent,
+        first_message="Hi, this is Mia from Acme.",
+        machine_detection=True,                            # default in 0.6.3
+        voicemail_message="Sorry we missed you. Call back at +1...",
+        ring_timeout=30,                                    # default 25 s
+        wait=True,                                          # → CallResult
+    )
+
+    if result.outcome == "voicemail":
+        ...                               # AMD hit a machine; voicemail_message was dropped
+    elif result.outcome == "answered":
+        handle_live_answer(result)            # transcript, cost, duration on result
+    # else: no_answer | busy | failed → retry / mark in your campaign
 ```
 
 ### TypeScript
 
 ```typescript
-await phone.call({
+import { Patter, Twilio } from "getpatter";
+
+// `await using` keeps the local server up for the call's lifetime.
+await using phone = new Patter({ carrier: new Twilio(), phoneNumber: "+15550001234" });
+
+const result = await phone.call({
   to: "+14155551234",
   agent,
   firstMessage: "Hi, this is Mia from Acme.",
   machineDetection: true,
   voicemailMessage: "Sorry we missed you. Call back at +1...",
   ringTimeout: 30,
+  wait: true,                              // → CallResult
 });
+
+if (result.outcome === "voicemail") {
+  // AMD hit a machine; voicemailMessage was dropped
+} else if (result.outcome === "answered") {
+  handleLiveAnswer(result);                // transcript, cost, duration on result
+}
+// else: no_answer | busy | failed → retry / mark in your campaign
 ```
 
 **AMD on Twilio**: requires the number to have voice capability. Setting a
 non-empty `voicemail_message` implicitly enables AMD, so you can omit
 `machine_detection=True` if you've set the voicemail. Patter normalizes
-the Twilio parameter shape automatically in 0.6.2 — older versions required
+the Twilio parameter shape automatically in 0.6.3 — older versions required
 PascalCase like `MachineDetection`.
 
 **Recording is server-wide**, not per-call: pass `recording=True` to

@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://www.skills.sh/patterai/skills"><img src="https://img.shields.io/badge/skills.sh-patterai%2Fskills-blue" alt="skills.sh" /></a>
-  <a href="https://github.com/PatterAI/Patter"><img src="https://img.shields.io/badge/SDK-getpatter%200.6.2-success" alt="getpatter 0.6.2" /></a>
+  <a href="https://github.com/PatterAI/Patter"><img src="https://img.shields.io/badge/SDK-getpatter%200.6.3-success" alt="getpatter 0.6.3" /></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License" /></a>
 </p>
 
@@ -36,7 +36,7 @@ npx skills add patterai/skills
 npx skills add patterai/skills --skill build-voice-agent
 
 # Pin to a specific SDK version (recommended for production)
-npx skills add patterai/skills#v0.6.2 --skill build-voice-agent
+npx skills add patterai/skills#v0.6.3 --skill build-voice-agent
 ```
 
 Skills land in `~/.agents/skills/<skill-name>/` (global) or `./.agents/skills/<skill-name>/` (project-local), with symlinks into each detected agent's skills directory.
@@ -51,7 +51,7 @@ Skills land in `~/.agents/skills/<skill-name>/` (global) or `./.agents/skills/<s
 | [`add-tools-and-handoffs`](./add-tools-and-handoffs) | Custom tools, `transfer_call`, `end_call`, output guardrails. |
 | [`inspect-calls-and-metrics`](./inspect-calls-and-metrics) | Live dashboard, `CallMetrics`, cost tracking, CSV/JSON export. |
 
-Larger skills (`build-voice-agent`, `configure-telephony`) bundle a `references/` directory the agent loads on demand for deep-dive topics. Tested against `getpatter` 0.6.2 in both Python (≥3.11) and TypeScript (Node ≥20).
+Larger skills (`build-voice-agent`, `configure-telephony`) bundle a `references/` directory the agent loads on demand for deep-dive topics. Tested against `getpatter` 0.6.3 in both Python (≥3.11) and TypeScript (Node ≥20).
 
 ## Supported agents
 
@@ -66,7 +66,7 @@ The `skills` CLI auto-detects every agent on the user's machine and installs the
 ## Requirements
 
 - **Python 3.11+** or **Node.js 20+**
-- `getpatter` package — `pip install "getpatter>=0.6.2"` or `npm install "getpatter@>=0.6.2"`
+- `getpatter` package — `pip install "getpatter>=0.6.3"` or `npm install "getpatter@>=0.6.3"`
 - Provider credentials in env: at least one of `OPENAI_API_KEY`, `ELEVENLABS_API_KEY`, `DEEPGRAM_API_KEY`, `CEREBRAS_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`, depending on the engine chosen
 - Carrier credentials in env: Twilio (`TWILIO_ACCOUNT_SID` + `TWILIO_AUTH_TOKEN`) or Telnyx (`TELNYX_API_KEY` + `TELNYX_CONNECTION_ID`)
 
@@ -74,7 +74,7 @@ The `setup-patter` skill walks the user through every credential, one console at
 
 ## Versioning
 
-Skills version with the SDK. A skill at tag `v0.6.2` is guaranteed to match the API of `getpatter==0.6.2`. Skills on `main` track the next unreleased version — pin to a tag for reproducibility.
+Skills version with the SDK. A skill at tag `v0.6.3` is guaranteed to match the API of `getpatter==0.6.3`. Skills on `main` track the next unreleased version — pin to a tag for reproducibility.
 
 ## License
 

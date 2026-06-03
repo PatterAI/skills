@@ -24,7 +24,7 @@
 
 ---
 
-[Agent Skills](https://agentskills.io) for the Patter SDK — give your AI agent a phone number in any harness that consumes the standard. One CLI, five skills, ~55 supported coding and voice agents.
+[Agent Skills](https://agentskills.io) for the Patter SDK — give your AI agent a phone number in any harness that consumes the standard. One CLI, six skills, ~55 supported coding and voice agents.
 
 ## Install
 
@@ -49,6 +49,7 @@ Skills land in `~/.agents/skills/<skill-name>/` (global) or `./.agents/skills/<s
 | [`build-voice-agent`](./build-voice-agent) | Build a voice agent — Realtime / ConvAI / Pipeline modes, with full Python and TypeScript examples. |
 | [`configure-telephony`](./configure-telephony) | Twilio or Telnyx carrier setup — phone numbers, webhooks, tunnels, AMD, voicemail drop. |
 | [`add-tools-and-handoffs`](./add-tools-and-handoffs) | Custom tools, `transfer_call`, `end_call`, output guardrails. |
+| [`integrate-openclaw`](./integrate-openclaw) | Wire Patter as the voice layer on an OpenClaw brain — consult one scoped agent mid-call, survive long tool calls, open inbound, speakerphone tuning. |
 | [`inspect-calls-and-metrics`](./inspect-calls-and-metrics) | Live dashboard, `CallMetrics`, cost tracking, CSV/JSON export. |
 
 Larger skills (`build-voice-agent`, `configure-telephony`) bundle a `references/` directory the agent loads on demand for deep-dive topics. Tested against `getpatter` 0.6.3 in both Python (≥3.11) and TypeScript (Node ≥20).

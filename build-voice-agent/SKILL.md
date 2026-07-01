@@ -13,7 +13,7 @@ description: >
   AI" without naming Patter.
 license: MIT
 compatibility: >
-  Requires Patter >= 0.6.3, a configured carrier (Twilio or Telnyx) and
+  Requires Patter >= 0.7.0, a configured carrier (Twilio or Telnyx) and
   provider key (OPENAI_API_KEY for Realtime; ELEVENLABS_API_KEY for ConvAI;
   STT+LLM+TTS keys for Pipeline). Use the `setup-patter` skill first if the
   user hasn't installed and configured Patter.
@@ -128,6 +128,7 @@ The default works for 80% of agents. Switch when:
 | Better long-pause handling, ElevenLabs voice | `ElevenLabsConvAI` | [references/convai-mode.md](references/convai-mode.md) |
 | Mix custom STT / LLM / TTS (Anthropic, Deepgram, Cartesia, …) | Pipeline | [references/pipeline-mode.md](references/pipeline-mode.md) |
 | Save cost on high-volume outbound | Pipeline with Cerebras LLM + Deepgram STT + ElevenLabs Turbo | [references/pipeline-mode.md](references/pipeline-mode.md) |
+| Noisy line / speakerphone (denoiser, high-pass, AGC, semantic turn detection) | Pipeline audio levers | [references/pipeline-mode.md](references/pipeline-mode.md) |
 
 Read the corresponding reference only when the user picks that mode — do not
 preload all three.
@@ -208,7 +209,7 @@ console.log(`${result.durationSeconds}s · $${result.cost.totalUsd}`);
 
 `wait=True` is timeout-bounded on `ring_timeout` (default 25 s), so a number
 that never picks up resolves to `outcome="no_answer"` rather than hanging
-forever. `machine_detection` is on by default in 0.6.3: Patter auto-detects
+forever. `machine_detection` is on by default since 0.6.3: Patter auto-detects
 voicemail, plays the call's `voicemail_message` before hanging up, and the
 `CallResult` comes back with `outcome="voicemail"`. A non-empty
 `voicemail_message` implicitly enables AMD even if you pass
@@ -232,7 +233,7 @@ to 1 sentence under 8 seconds of audio.
 
 ## Gotchas
 
-- **Patter has no Patter Cloud in 0.6.3** — `Patter(api_key=...)` raises
+- **Patter has no Patter Cloud as of 0.7.0** — `Patter(api_key=...)` raises
   `NotImplementedError`. Always use `carrier=...` + `phone_number=...`.
 - **Built-in tools are always present**: every agent gets `transfer_call` and
   `end_call` for free. You don't have to register them.
@@ -244,11 +245,18 @@ to 1 sentence under 8 seconds of audio.
   occasionally have a ~3 s WSS upgrade race on first call.
 - **`first_message` is played before the LLM responds**. If you omit it,
   there's an awkward 1–2 s pause while the LLM warms up.
-- **Barge-in works by default** in 0.6.3 (VAD activation 0.8, deactivation
+- **Barge-in works by default** since 0.6.3 (VAD activation 0.8, deactivation
   0.65 — tuned for room noise). If your callers are interrupting at the
   wrong moments, see [`inspect-calls-and-metrics`](../inspect-calls-and-metrics/)
   to read the VAD events from the call log.
-- **`prewarm_first_message=False` is the default** in 0.6.3 — it was briefly
+- **Callers cut off mid-pause?** In Pipeline mode add a semantic
+  `turn_detector` (smart-turn or NAMO) and, on noisy lines, the
+  `denoiser` / `high_pass_hz` / `agc` levers — see
+  [references/pipeline-mode.md](references/pipeline-mode.md). In Realtime
+  mode use `openai_realtime_noise_reduction="far_field"` and
+  `realtime_turn_detection` — see
+  [references/realtime-mode.md](references/realtime-mode.md).
+- **`prewarm_first_message=False` is the default** since 0.6.3 — it was briefly
   flipped to `True` mid-release and reverted because it conflicted with
   barge-in.
 

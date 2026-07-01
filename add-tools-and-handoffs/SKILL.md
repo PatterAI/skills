@@ -7,10 +7,10 @@ description: >
   schedule a callback, transfer to a human, hang up on abuse, refuse to say
   certain phrases, validate caller intent, or do anything beyond
   conversation. Covers `@tool` (Python) and `defineTool` (TypeScript), as
-  well as JSON-Schema webhook tools, in Patter 0.6.3.
+  well as JSON-Schema webhook tools, in Patter 0.7.0.
 license: MIT
 compatibility: >
-  Requires Patter >= 0.6.3 and an agent already built via `build-voice-agent`.
+  Requires Patter >= 0.7.0 and an agent already built via `build-voice-agent`.
   Tools work in all three modes (Realtime, ConvAI, Pipeline), though
   Realtime supports the richest tool flow with `reassurance` messages.
 metadata:

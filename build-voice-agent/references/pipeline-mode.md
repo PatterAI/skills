@@ -115,6 +115,115 @@ await phone.serve({ agent, tunnel: true });
   which leg is the bottleneck (e.g. if TTS first-byte is 400 ms, swap to
   Cartesia).
 
+## Inbound audio quality & turn-taking
+
+Pipeline mode exposes the full caller → STT audio chain. Every stage is opt-in
+and the defaults keep audio byte-identical. Fixed stage order:
+
+```
+HPF (high_pass_hz) → resample → AEC → denoiser / audio_filter → AGC → VAD → STT
+```
+
+| Lever | Field (Py / TS) | Default | Use for |
+|---|---|---|---|
+| High-pass / DC-block (0.7.0) | `high_pass_hz` / `highPassHz` | off | Mains hum (50/60 Hz), handling rumble. Typical `80`–`120`. Runs first, before AEC. |
+| Speech-selective AGC (0.7.0) | `agc` / `agc` (`bool` or `AgcConfig`) | `False` | Quiet or variable-distance talkers — normalises toward a target RMS. Silence is never amplified; a peak limiter prevents clipping. |
+| Krisp denoiser by model id | `denoiser` / `denoiser` (string) | none | Job-site / speakerphone noise. BYO-license — see below. |
+| Custom filter instance | `audio_filter` / `audioFilter` | none | Bring your own `AudioFilter` (e.g. `DeepFilterNetFilter`, `KrispVivaFilter`). Wins over `denoiser` when both are set. |
+| Semantic end-of-turn | `turn_detector` / `turnDetector` | none | Stop cutting callers off mid-pause. See below. |
+
+### Krisp denoiser by model id *(SDK main — next release after 0.7.0)*
+
+Select a Krisp model with a stable string id instead of constructing a filter:
+
+| Model id | Krisp session | Cancels |
+|---|---|---|
+| `krisp-viva-tel-v2` | NC | Telephony background noise (VIVA). |
+| `krisp-bvc-o-pro-v3` | BVC | Background **voices** (other speakers near the caller). |
+
+Krisp is **bring-your-own-license** — Patter ships zero Krisp binaries, license
+keys, or `.kef` model files. The operator supplies all three:
+
+1. Install the Krisp SDK: `pip install "getpatter[krisp]"` (Python) / your own
+   licensed Node Krisp SDK (TypeScript).
+2. Set `KRISP_VIVA_SDK_LICENSE_KEY` to your license key.
+3. Set `KRISP_MODELS_DIR` to the directory holding your licensed `.kef` files
+   (named `<model-id>.kef`, e.g. `krisp-viva-tel-v2.kef`).
+
+```python
+agent = phone.agent(
+    stt=DeepgramSTT(model="nova-3"),
+    llm=CerebrasLLM(model="gpt-oss-120b"),
+    tts=ElevenLabsTTS(voice_id="rachel"),
+    system_prompt="You are a friendly receptionist.",
+    denoiser="krisp-viva-tel-v2",       # or "krisp-bvc-o-pro-v3"
+    high_pass_hz=100,                    # hum + rumble ahead of the denoiser
+    agc=True,                            # level the quiet talkers
+)
+```
+
+```typescript
+const agent = phone.agent({
+  stt: new DeepgramSTT({ model: "nova-3" }),
+  llm: new CerebrasLLM({ model: "gpt-oss-120b" }),
+  tts: new ElevenLabsTTS({ voiceId: "rachel" }),
+  systemPrompt: "You are a friendly receptionist.",
+  denoiser: "krisp-viva-tel-v2",        // or "krisp-bvc-o-pro-v3"
+  highPassHz: 100,
+  agc: true,
+});
+```
+
+Resolution is fail-fast at call start: a missing SDK, license key, models dir,
+or `.kef` file raises a clear error naming exactly what to install or set — it
+never silently degrades to a no-op. `denoiser` and `audio_filter` fill the same
+chain slot; an explicit `audio_filter` instance wins.
+
+### Semantic end-of-turn detection
+
+By default the turn ends when VAD hears silence — which cuts off callers who
+pause mid-sentence ("my email is john at… ‹pause› …gmail dot com"). Pass a
+`turn_detector` and the handler holds the STT finalize until the model agrees
+the turn is complete, bounded by `max_semantic_hold_ms` (default `1200`) so a
+turn can never hang:
+
+| Detector | Reads | Weights | Install |
+|---|---|---|---|
+| `SmartTurnDetector` | Audio prosody (last seconds of caller PCM) | smart-turn v3 ONNX ([pipecat-ai/smart-turn-v3](https://huggingface.co/pipecat-ai/smart-turn-v3)) — download, point `PATTER_SMART_TURN_MODEL` at it | `pip install "getpatter[turn-detector]"` / `onnxruntime-node` |
+| `NamoTurnDetector` *(SDK main — next release after 0.7.0)* | Rolling transcript (last ~4 turns + in-flight utterance) | NAMO Turn Detector v1 ONNX (VideoSDK, Apache-2.0) — download the per-language model + HF tokenizer, point `PATTER_NAMO_MODEL` at the `.onnx` | `pip install "getpatter[namo-turn-detector]"` / `@huggingface/transformers` + `onnxruntime-node` |
+
+```python
+from getpatter import NamoTurnDetector
+
+agent = phone.agent(
+    stt=DeepgramSTT(model="nova-3"),
+    llm=CerebrasLLM(model="gpt-oss-120b"),
+    tts=ElevenLabsTTS(voice_id="rachel"),
+    system_prompt="You are a friendly receptionist.",
+    turn_detector=NamoTurnDetector.load(),   # reads PATTER_NAMO_MODEL
+    max_semantic_hold_ms=1200,               # backstop — never hold longer
+)
+```
+
+```typescript
+import { NamoTurnDetector } from "getpatter";
+
+const agent = phone.agent({
+  stt: new DeepgramSTT({ model: "nova-3" }),
+  llm: new CerebrasLLM({ model: "gpt-oss-120b" }),
+  tts: new ElevenLabsTTS({ voiceId: "rachel" }),
+  systemPrompt: "You are a friendly receptionist.",
+  turnDetector: await NamoTurnDetector.load(),  // reads PATTER_NAMO_MODEL
+  maxSemanticHoldMs: 1200,
+});
+```
+
+NAMO ships **per-language models**, each with its own recommended decision
+threshold — pick the model for your callers' language and pass
+`threshold=` to `load()` (default `0.5`). The tokenizer is loaded from the
+directory containing the model file, or from `PATTER_NAMO_TOKENIZER` /
+`tokenizer_path=`. Weights are never bundled with the SDK.
+
 ## Common errors
 
 | Symptom | Fix |
@@ -124,3 +233,8 @@ await phone.serve({ agent, tunnel: true });
 | Agent hears but doesn't talk | TTS provider key missing or wrong. Check `ELEVENLABS_API_KEY`. |
 | Agent speaks slowly | Switch LLM to Cerebras or Groq (faster than OpenAI for short replies). |
 | First TTS byte is slow | Switch TTS to Cartesia or ElevenLabs WebSocket (avoid REST/HTTP). |
+| `Unknown denoiser '...'` | Only `krisp-viva-tel-v2` and `krisp-bvc-o-pro-v3` are registered. Check the id string. |
+| `Denoiser ... needs the Krisp model directory` | Set `KRISP_MODELS_DIR` to the folder holding your licensed `.kef` files (and `KRISP_VIVA_SDK_LICENSE_KEY`). Krisp is BYO-license. |
+| `NamoTurnDetector requires ...` ImportError | Install the extra: `pip install "getpatter[namo-turn-detector]"` / add `@huggingface/transformers` + `onnxruntime-node`. |
+| NAMO model not found | Download a NAMO Turn Detector v1 `.onnx` + tokenizer and set `PATTER_NAMO_MODEL` (weights are not bundled). |
+| Caller gets cut off mid-pause | Add a `turn_detector` (NAMO or smart-turn) — VAD-only endpointing treats any pause as end of turn. |

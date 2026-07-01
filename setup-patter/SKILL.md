@@ -6,14 +6,14 @@ description: >
   the user is starting a new Patter project, hitting "missing API key" errors,
   setting up Twilio or Telnyx, integrating OpenAI Realtime / ElevenLabs /
   Deepgram, or asking how to get Patter running — even if they don't
-  explicitly say "setup" or "credentials". Covers Patter 0.6.3 in both
+  explicitly say "setup" or "credentials". Covers Patter 0.7.0 in both
   Python (>=3.11) and TypeScript (Node >=20) runtimes.
 license: MIT
 compatibility: >
   Requires Python 3.11+ or Node.js 20+. Needs at least one provider key
   (e.g. OPENAI_API_KEY) and one carrier credential set (Twilio
   TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN, or Telnyx TELNYX_API_KEY) in env.
-  Patter >= 0.6.3.
+  Patter >= 0.7.0.
 metadata:
   author: patter
   version: "0.1.0"
@@ -33,8 +33,8 @@ carrier (Twilio or Telnyx) keys, and Patter wires them together.
 
 Ask the user which SDK they want. Both have full feature parity.
 
-- **Python** (3.11+): `pip install "getpatter>=0.6.3"`
-- **TypeScript** (Node 20+): `npm install "getpatter@>=0.6.3"`
+- **Python** (3.11+): `pip install "getpatter>=0.7.0"`
+- **TypeScript** (Node 20+): `npm install "getpatter@>=0.7.0"`
 
 If they're unsure, default to whichever language the rest of their project
 is in. Do not install both.
@@ -43,7 +43,7 @@ is in. Do not install both.
 
 | Engine | What it does | Required keys |
 |---|---|---|
-| `OpenAIRealtime2` (recommended, GA in 0.6.3) | Speech-to-speech via OpenAI Realtime API — lowest latency | `OPENAI_API_KEY` |
+| `OpenAIRealtime2` (recommended, GA since 0.6.3) | Speech-to-speech via OpenAI Realtime API — lowest latency | `OPENAI_API_KEY` |
 | `OpenAIRealtime` (legacy) | Older `gpt-realtime-mini` model. Same key. | `OPENAI_API_KEY` |
 | `ElevenLabsConvAI` | ElevenLabs ConversationAI — turn-taking model | `ELEVENLABS_API_KEY` |
 | `Pipeline` (no engine arg) | STT → LLM → TTS — mix providers freely | At least one each of STT/LLM/TTS key |
@@ -195,21 +195,21 @@ log line like `tunnel ready: https://<random>.trycloudflare.com` within ~5 secon
 
 If smoke-test passes, tell the user:
 
-> Patter 0.6.3 is set up. You can now use the `build-voice-agent` skill to
+> Patter 0.7.0 is set up. You can now use the `build-voice-agent` skill to
 > design the agent, `configure-telephony` to wire the carrier webhook to the
 > tunnel URL, or `add-tools-and-handoffs` to give the agent tools.
 
 ## Gotchas
 
-- **`Patter(api_key=...)` raises `NotImplementedError`** in 0.6.3 — Patter
+- **`Patter(api_key=...)` raises `NotImplementedError`** as of 0.7.0 — Patter
   Cloud was removed in 0.5.3 and will return as a future release. Always
   instantiate with `carrier=` + `phone_number=`, never with `api_key=`.
 - **`pip install patter`** (no `get` prefix) installs an unrelated package.
   Always install `getpatter`.
-- **Twilio kwargs in 0.6.3 normalize automatically** — `status_callback`,
+- **Twilio kwargs since 0.6.3 normalize automatically** — `status_callback`,
   `machine_detection`, `timeout`, `async_amd` work as snake_case (Python) and
   camelCase (TS); no need to PascalCase them.
-- **OpenAIRealtime vs OpenAIRealtime2** — both work in 0.6.3. Default to
+- **OpenAIRealtime vs OpenAIRealtime2** — both work in 0.7.0. Default to
   `OpenAIRealtime2` for new projects. `OpenAIRealtime` (model `gpt-realtime-mini`)
   is kept for back-compat.
 - **Cloudflare `tunnel=True` is dev-only**. Production should use a static

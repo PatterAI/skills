@@ -22,7 +22,7 @@ provider, simplest setup.
 
 | Engine | Model | Status | When to pick |
 |---|---|---|---|
-| `OpenAIRealtime2` | `gpt-realtime-2` | **GA in 0.6.3 (recommended)** | New code |
+| `OpenAIRealtime2` | `gpt-realtime-2` | **GA since 0.6.3 (recommended)** | New code |
 | `OpenAIRealtime` | `gpt-realtime-mini` | Maintained for compat | Existing 0.5.x → 0.6.x upgrades |
 
 ## Python
@@ -80,6 +80,28 @@ await phone.serve({ agent, tunnel: true });
   expressive. Check OpenAI's docs for current options.
 - **`input_audio_transcription_model="whisper-1"`** logs what the caller said
   to the dashboard. Without it, only the assistant's text is captured.
+
+## Noise & turn-taking on the phone line
+
+Three agent-level knobs (all opt-in, defaults unchanged):
+
+- **`openai_realtime_noise_reduction` / `openaiRealtimeNoiseReduction`**
+  (0.6.4+) — `"far_field"` is recommended for phone / speakerphone calls,
+  `"near_field"` for a handset close to the mouth. Default omits the field
+  (no reduction).
+- **`realtime_turn_detection` / `realtimeTurnDetection`** (0.6.4+) — a
+  `RealtimeTurnDetection` that tunes the server-side VAD. Raise
+  `threshold` and `silence_duration_ms` on a noisy line
+  (`type="server_vad"`), or switch to `type="semantic_vad"` with
+  `eagerness="low"` to let callers finish their thought. Each unset field
+  keeps the adapter default (server_vad, threshold 0.5,
+  prefix_padding_ms 300).
+- **`transcription_language` / `transcriptionLanguage`** (0.7.0, on the
+  engine marker) — pins the Whisper transcription language (ISO-639-1,
+  e.g. `"it"`) instead of per-utterance auto-detect, which mislabels short
+  or noisy phone utterances. Display-side only: the dashboard /
+  `on_transcript` / history transcript — the speech-to-speech model's
+  comprehension is unaffected.
 
 ## Costs (rough, see <https://openai.com/api/pricing>)
 

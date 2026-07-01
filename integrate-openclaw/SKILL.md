@@ -9,11 +9,11 @@ description: >
   dropping during a slow (30-60 s) tool. Covers both directions
   (OpenClaw drives Patter via `patter-mcp`; Patter consults OpenClaw via
   `ConsultConfig`), long-tool-call survival, speakerphone noise tuning,
-  open inbound, and least-privilege agent scoping. Patter 0.6.3, Python
+  open inbound, and least-privilege agent scoping. Patter 0.7.0, Python
   and TypeScript.
 license: MIT
 compatibility: >
-  Requires Patter >= 0.6.3 (`ConsultConfig` / `consult` shipped in 0.6.x)
+  Requires Patter >= 0.7.0 (`ConsultConfig` / `consult` shipped in 0.6.x)
   and a running OpenClaw gateway you control. Consult is injected in
   Realtime and Pipeline modes only (ElevenLabs ConvAI hosts its own tools,
   so consult does not apply there). For Direction A you also need the
@@ -386,7 +386,7 @@ const checkSchedule = {
 ```
 
 <Warning>
-**Reassurance is Realtime-only in 0.6.3.** In Pipeline mode the field is silently
+**Reassurance is Realtime-only as of 0.7.0.** In Pipeline mode the field is silently
 ignored (the LLM has to generate its own filler); ConvAI doesn't expose it. For
 the receptionist line, **use Realtime** — it is also the lowest-latency English
 path and has the strongest tool flow.
@@ -394,14 +394,13 @@ path and has the strongest tool flow.
 
 ### 3. Per-tool timeout
 
-- **TypeScript:** `ToolDefinition.timeoutMs` exists (default 10 000 ms, clamped to
+- **TypeScript:** `ToolDefinition.timeoutMs` (default 10 000 ms, clamped to
   300 000 ms). Raise it to `60_000` for slow tools — shown above. A timeout
   returns `{ error, fallback: true }` and is not retried.
-- **Python:** the `@tool` / `Tool` surface has **no** per-tool timeout field yet —
-  the generic webhook path uses a fixed 10 s. The way to get a long, configurable
-  timeout in Python today is **the consult path** (`ConsultConfig.timeout_s`),
-  which the handler honours directly. So for Python, route slow work through
-  `consult` rather than a webhook tool until the per-tool timeout lands.
+- **Python:** `timeout_s` on the `tool()` factory / `Tool` dataclass since
+  0.6.4 (`tool(name=..., handler=..., timeout_s=60.0)`; default `None` keeps
+  the 10 s behaviour, clamped to 300 s). Same terminal semantics as TS. The
+  consult path keeps its own independent `ConsultConfig.timeout_s`.
 
 ### Why this beats "OpenClaw as a Custom LLM"
 
@@ -418,53 +417,84 @@ the brain is a consulted specialist invoked only on hard turns. Keep it that way
 
 Contractors call from job sites on speakerphone. Tiny noises (a mouse move, the
 phone shifting) can false-trigger turn detection and cut the agent off
-mid-sentence. The live levers in 0.6.3:
+mid-sentence. The live levers:
 
-| Lever | Field | Default | For the noisy line |
+| Lever | Field | Mode | For the noisy line |
 |---|---|---|---|
-| Barge-in floor (Realtime + Pipeline) | `barge_in_threshold_ms` / `bargeInThresholdMs` | `300` | Raise to **~500** so a transient doesn't count as a barge-in. `0` disables barge-in entirely. |
-| Echo cancellation (**Pipeline only**) | `echo_cancellation` / `echoCancellation` | `false` | Set **`True`** for speakerphone/tunnel — stops the agent's own TTS bleed from holding VAD in "speaking" state. |
-| Pipeline VAD threshold | `Agent(vad=SileroVAD.load(...))` | `activation_threshold=0.5`, `min_silence_duration=0.4` | Raise activation to **~0.8** (filters background noise) and silence to **~0.6-1.0 s** (lets callers pause mid-thought). |
+| Barge-in floor | `barge_in_threshold_ms` / `bargeInThresholdMs` (default `300`) | Realtime + Pipeline | Raise to **~500** so a transient doesn't count as a barge-in. `0` disables barge-in entirely. |
+| Far-field noise reduction (0.6.4+) | `openai_realtime_noise_reduction="far_field"` / `openaiRealtimeNoiseReduction` | Realtime | Recommended for speakerphone / conference-room callers. |
+| Server-VAD tuning (0.6.4+) | `realtime_turn_detection=RealtimeTurnDetection(...)` / `realtimeTurnDetection` | Realtime | Raise `threshold` (~0.7) and `silence_duration_ms` (~700), or switch to `type="semantic_vad"` with `eagerness="low"` so callers can finish a thought. |
+| Krisp denoiser (SDK main, post-0.7.0) | `denoiser="krisp-viva-tel-v2"` (job-site noise) or `"krisp-bvc-o-pro-v3"` (background voices) | Pipeline | BYO license: `getpatter[krisp]` + `KRISP_VIVA_SDK_LICENSE_KEY` + `KRISP_MODELS_DIR`. |
+| High-pass + AGC (0.7.0) | `high_pass_hz=100`, `agc=True` / `highPassHz`, `agc` | Pipeline | Kills mains hum / handling rumble; levels quiet variable-distance talkers. |
+| Silero VAD | `Agent(vad=SileroVAD.load(...))` | Pipeline | Raise activation to **~0.8** (filters background noise) and silence to **~0.6-1.0 s** (lets callers pause mid-thought). |
+| Semantic end-of-turn | `turn_detector=SmartTurnDetector.load()` (audio) or `NamoTurnDetector.load()` (transcript; SDK main, post-0.7.0) | Pipeline | Holds the turn while the caller is mid-sentence, bounded by `max_semantic_hold_ms` (default 1200). |
+
+Realtime receptionist (reassurance works here — preferred for this line):
 
 ```python
-from getpatter import Patter, Twilio
-from getpatter.providers.silero_vad import SileroVAD
+from getpatter import Patter, Twilio, OpenAIRealtime2, RealtimeTurnDetection
 
 phone = Patter(carrier=Twilio(), phone_number="+15550001234")
 agent = phone.agent(
-    # Pipeline mode (no engine=) — exposes the VAD + AEC levers
+    engine=OpenAIRealtime2(),
     system_prompt="You are the after-hours receptionist for Acme Roofing.",
     first_message="Thanks for calling Acme Roofing, how can I help?",
     barge_in_threshold_ms=500,                       # noisy speakerphone
-    echo_cancellation=True,                          # pipeline-only; speakerphone bleed
-    vad=SileroVAD.load(activation_threshold=0.8, min_silence_duration=0.7),
+    openai_realtime_noise_reduction="far_field",     # speakerphone preset
+    realtime_turn_detection=RealtimeTurnDetection(
+        type="server_vad", threshold=0.7, silence_duration_ms=700,
+    ),
     consult=ConsultConfig(url="http://127.0.0.1:8000/consult", timeout_s=75.0, allow_loopback=True),
 )
 ```
 
 ```typescript
-import { Patter, Twilio } from "getpatter";
-import { SileroVAD } from "getpatter";
+import { Patter, Twilio, OpenAIRealtime2 } from "getpatter";
 
 const phone = new Patter({ carrier: new Twilio(), phoneNumber: "+15550001234" });
 const agent = phone.agent({
+  engine: new OpenAIRealtime2(),
   systemPrompt: "You are the after-hours receptionist for Acme Roofing.",
   firstMessage: "Thanks for calling Acme Roofing, how can I help?",
   bargeInThresholdMs: 500,                           // noisy speakerphone
-  echoCancellation: true,                            // pipeline-only; speakerphone bleed
-  vad: await SileroVAD.load({ activationThreshold: 0.8, minSilenceDuration: 0.7 }),
+  openaiRealtimeNoiseReduction: "far_field",         // speakerphone preset
+  realtimeTurnDetection: { type: "server_vad", threshold: 0.7, silenceDurationMs: 700 },
   consult: { url: "http://127.0.0.1:8000/consult", timeoutMs: 75_000, allowLoopback: true },
 });
 ```
 
+Pipeline variant — deeper audio chain when you control the STT/LLM/TTS stack
+(see `build-voice-agent` → `references/pipeline-mode.md` for the full lever
+docs):
+
+```python
+from getpatter import Patter, Twilio, NamoTurnDetector
+from getpatter.providers.silero_vad import SileroVAD
+
+phone = Patter(carrier=Twilio(), phone_number="+15550001234")
+agent = phone.agent(
+    # Pipeline mode (no engine=) — exposes the full inbound audio chain
+    system_prompt="You are the after-hours receptionist for Acme Roofing.",
+    first_message="Thanks for calling Acme Roofing, how can I help?",
+    barge_in_threshold_ms=500,
+    denoiser="krisp-viva-tel-v2",                    # BYO Krisp license
+    high_pass_hz=100,                                # hum + handling rumble
+    agc=True,                                        # quiet talkers
+    vad=SileroVAD.load(activation_threshold=0.8, min_silence_duration=0.7),
+    turn_detector=NamoTurnDetector.load(),           # PATTER_NAMO_MODEL
+    consult=ConsultConfig(url="http://127.0.0.1:8000/consult", timeout_s=75.0, allow_loopback=True),
+)
+```
+
 <Warning>
-**Trade-off vs the long-call recipe.** Pipeline gives you `echo_cancellation` and
-Silero VAD knobs, but **reassurance is Realtime-only** (above). You can't have
-both first-class today: for the receptionist line, prefer **Realtime + raised
-`barge_in_threshold_ms`** so reassurance works, and accept that the finer
-server-VAD knobs (`far_field` noise reduction, server-VAD `threshold` /
-`silence_duration_ms`) are not yet exposed in 0.6.3 — they are a pending SDK
-addition. Do not promise the full server-VAD preset until it ships.
+**Don't reach for `echo_cancellation` on a phone line.** Patter's AEC is
+browser/native-audio only — on a PSTN call the carrier round-trip exceeds the
+filter window, so it passes audio through unchanged (line echo is the
+carrier's job, ITU-T G.168). For speakerphone TTS bleed use the Realtime
+`far_field` preset or the Pipeline denoiser instead. Reassurance is still
+Realtime-only — prefer **Realtime** for the receptionist line, which since
+0.6.4 also has first-class noise levers (`far_field`,
+`realtime_turn_detection`).
 </Warning>
 
 ---
@@ -578,18 +608,21 @@ verify reachability after wiring (`openclaw mcp doctor patter --probe`).
   The call dies at the shortest link.
 - **Reassurance is Realtime-only.** Pipeline ignores it. Prefer Realtime for the
   receptionist line so the "let me check" filler actually plays.
-- **Python has no per-tool timeout yet** — route slow work through `consult`
-  (`timeout_s`), not a webhook tool (fixed 10 s). TS has `ToolDefinition.timeoutMs`.
+- **Raise the per-tool timeout on slow tools** — both SDKs default to 10 s.
+  Since 0.6.4: Python `tool(..., timeout_s=60.0)`, TS
+  `ToolDefinition.timeoutMs: 60_000` (both clamped to 300 s; a timeout is
+  terminal, not retried).
 - **`allow_loopback` is the intended shape here**, not a hack — on a co-located
   Mac Mini the adapter and gateway are on loopback. It relaxes only the consult
   URL's host check; non-HTTP(S) schemes are still rejected.
 - **The adapter must forward `call_id` / `caller`.** The default doc adapter
   drops them; without `user=call_id` every consult starts a fresh OpenClaw
   session (no continuity) and caller-ID prefetch is impossible.
-- **`far_field` noise reduction and server-VAD `threshold`/`silence_duration_ms`
-  are NOT exposed in 0.6.3.** Today's live noise levers are
-  `barge_in_threshold_ms`, `echo_cancellation` (pipeline), and Silero VAD
-  (pipeline). Don't write config that sets non-existent fields.
+- **`echo_cancellation` is a no-op on PSTN calls** — Patter's AEC only applies
+  to browser/native audio; the carrier handles line echo. The real noise
+  levers are `openai_realtime_noise_reduction="far_field"` +
+  `realtime_turn_detection` (Realtime, 0.6.4+) and `denoiser` /
+  `high_pass_hz` / `agc` / Silero VAD / `turn_detector` (Pipeline).
 - **`patter-mcp` is not on npm.** Run it from a local clone of
   [`PatterAI/patter-mcp`](https://github.com/PatterAI/patter-mcp).
 
@@ -601,7 +634,7 @@ verify reachability after wiring (`openclaw mcp doctor patter --probe`).
 | Caller hears dead air during a lookup | No reassurance firing. Use Realtime mode and either set `reassurance` on a slow tool or prompt the agent to say "let me check" before calling `consult_agent`. |
 | Consult reaches the wrong / a privileged agent | Adapter sends `model: "openclaw"`. Pin `"openclaw/<receptionistAgentId>"` and lock the agent's `tools.allow`/`deny`. |
 | `ValueError: ConsultConfig url must be http(s)` / host rejected | Loopback/private host with the SSRF guard on. Set `allow_loopback=True` / `allowLoopback: true` for your local adapter URL. |
-| Agent cut off mid-sentence on a noisy line | Raise `barge_in_threshold_ms` to ~500; in Pipeline also set `echo_cancellation=True` and raise the Silero `activation_threshold`. |
+| Agent cut off mid-sentence on a noisy line | Raise `barge_in_threshold_ms` to ~500. In Realtime add `openai_realtime_noise_reduction="far_field"` and raise the `realtime_turn_detection` threshold; in Pipeline set a `denoiser` and raise the Silero `activation_threshold`. |
 | Multi-turn call has no memory of earlier turns | Adapter not sending `user=call_id` — every consult opens a new OpenClaw session. |
 | OpenClaw agent can't see Patter's MCP tools (Direction A) | `bundle-mcp` not allowlisted in `tools.sandbox.tools.alsoAllow`, or `timeout` too low for a blocking call. |
 | Inbound calls from unknown numbers rejected | You're using OpenClaw's native voice plugin (allowlist-only). Put Patter on the DID instead; it answers everyone. |

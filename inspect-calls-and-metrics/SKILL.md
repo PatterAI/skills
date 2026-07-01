@@ -6,13 +6,13 @@ description: >
   and track per-call provider costs. Use when the user wants to debug a
   call, see which calls cost the most, audit transcripts, monitor a live
   agent, find a recording URL, check latency p99, export call history for
-  reporting, or watch the dashboard during a demo. Covers Patter 0.6.3's
+  reporting, or watch the dashboard during a demo. Covers Patter 0.7.0's
   in-memory MetricsStore + 500-call ring buffer, the FastAPI/Express
   dashboard mount, the REST API and SSE stream — in both Python and
   TypeScript.
 license: MIT
 compatibility: >
-  Requires Patter >= 0.6.3 and a running Patter server (`phone.serve(...)`).
+  Requires Patter >= 0.7.0 and a running Patter server (`phone.serve(...)`).
   Dashboard auth (basic auth) is recommended when serving on anything
   other than 127.0.0.1.
 metadata:
@@ -242,10 +242,11 @@ Key fields (see `models.py` / `metrics.ts` for the full list):
 | `stt_provider / llm_provider / tts_provider / telephony_provider` | Provider identifiers. |
 | `stt_model / llm_model / tts_model` | Model strings. |
 | `transcript` | List of `(role, text)` tuples — set when `input_audio_transcription_model` is configured. |
+| `context_tokens` | (0.7.0, pipeline mode) Peak estimated prompt size across the call, in the `chars / 4` token unit — chart it to spot context growth on long calls. |
 
 Recording URLs live in the carrier's payload, surfaced in the
 `call.recording.saved` log line — they are not exposed as a typed
-`CallMetrics` field in 0.6.3. Enable recording with `phone.serve(..., recording=True)`.
+`CallMetrics` field since 0.6.3. Enable recording with `phone.serve(..., recording=True)`.
 
 ## Gotchas
 
@@ -269,7 +270,7 @@ Recording URLs live in the carrier's payload, surfaced in the
 | Symptom | Fix |
 |---|---|
 | Dashboard 404s | You passed `dashboard=False` to `phone.serve(...)`. The default is `True` — drop the kwarg. |
-| Dashboard shows no calls | Server restarted with persistence off. `persist=True` is the default in 0.6.3; verify you didn't override it. |
+| Dashboard shows no calls | Server restarted with persistence off. `persist=True` is the default since 0.6.3; verify you didn't override it. |
 | Transcript is empty | Realtime mode without `input_audio_transcription_model` set, or guardrail blocked the response. |
 | Recording URL is missing from logs | `recording=True` wasn't passed to `phone.serve(...)`, or the carrier doesn't have recording enabled. |
 | `cost.total_usd` is 0 | The provider isn't in Patter's pricing table. Override per-provider rates via `merge_pricing({...})` on the `Patter` constructor. |
